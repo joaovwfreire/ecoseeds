@@ -4,12 +4,13 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import { ISuperToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperToken.sol";
 
-contract EcoSeeds is ERC20, ERC20Detailed, Ownable {
+contract EcoSeeds is Ownable {
 
     struct Sale {
         address owner;
-        boolean acceptsNct;
+        bool acceptsNct;
         uint256 pricePerUnitInNativeToken;
         uint256 lockInEnd;
         uint256 maxAmount;
@@ -20,13 +21,20 @@ contract EcoSeeds is ERC20, ERC20Detailed, Ownable {
     mapping(address => Sale) public Sales;
     address public nct;
     address public nctOracle;
+    address public superTokenFactory;
 
-    constructor () public ERC20Detailed("EcoSeeds", "ECO", 18) {
-        _mint(msg.sender, INITIAL_SUPPLY);
-        _owner = msg.sender;
+    constructor (address _nct, address _nctOracle, address _superTokenFactory) {
+
+        nct = _nct;
+        nctOracle = _nctOracle;
+        superTokenFactory = _superTokenFactory;
+
     }
 
-    function createSale(address existingToken, uint256 _pricePerUnitInNativeToken, uint256 _lockInEnd, uint256 _limit, boolean _acceptsNct) external{
+    /// @dev Creates a new sale
+    /// @param existingToken The address of the token to be sold. Requires an existing ERC20 token.
+    /// @param _pricePerUnitInNativeToken The price per unit of the token in the native token (Celo)
+    function createSale(address existingToken, uint256 _pricePerUnitInNativeToken, uint256 _lockInEnd, uint256 _limit, bool _acceptsNct) external{
         require(Sales[existingToken].owner == address(0), "Sale already exists");
         require(_pricePerUnitInNativeToken > 0, "Price must be greater than 0");
         require(_lockInEnd > 0, "Lock in period must be greater than 0");
@@ -34,12 +42,7 @@ contract EcoSeeds is ERC20, ERC20Detailed, Ownable {
 
         if (existingToken != address(0)){
             Sales[existingToken] = Sale(msg.sender, _acceptsNct, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
-        } else {
-            // Deploy new token
-
-            // 
-            Sales[newToken] = Sale(msg.sender, _acceptsNct, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
-        }
+        } 
     }
 
     function finishSale(address token) external {
@@ -70,17 +73,17 @@ contract EcoSeeds is ERC20, ERC20Detailed, Ownable {
 
     function adminWithdraw(address token, uint256 amount) external {
 
-        require(owner == msg.sender, "Only owner can withdraw");
+        require(owner() == msg.sender, "Only owner can withdraw");
     }
 
     function setOracle(address oracle) external {
 
-        require(owner == msg.sender, "Only owner can set oracle");
+        require(owner() == msg.sender, "Only owner can set oracle");
     }
 
     function setNct(address token) external {
 
-        require(owner == msg.sender, "Only owner can set NCT");
+        require(owner() == msg.sender, "Only owner can set NCT");
     }
 
     function deployNewToken() internal {}
