@@ -30,6 +30,7 @@ contract EcoSeeds is Ownable {
     event SaleCreated(address indexed owner, uint256 pricePerUnitInNativeToken, uint256 lockInEnd, uint256 limit, bool acceptsNct, address token);
     event SaleFinished(address indexed token, address indexed owner);
     event Purchase(address indexed token, address indexed buyer, uint256 amount);
+    event Withdraw(address indexed token, address indexed buyer, uint256 amount);
 
     constructor (address _nct, address _nctOracle) {
 
@@ -84,7 +85,13 @@ contract EcoSeeds is Ownable {
 
     function withdrawTokens(IERC20 token, uint256 amount) external {
 
-        require(token.balanceOf(msg.sender) >= amount, "Not enough tokens");
+        require(balances[address(token)][msg.sender] >= amount, "Not enough tokens to withdraw");
+        require(Sales[address(token)].lockInEnd < block.timestamp, "Lock period not over yet");
+        
+        balances[address(token)][msg.sender] -= amount;
+        IERC20(token).transfer(msg.sender, amount);
+
+        emit Withdraw(address(token), msg.sender, amount);
     }
 
     function burn(address token, uint256 amount) external {
@@ -94,7 +101,7 @@ contract EcoSeeds is Ownable {
 
     function claim(address token) external {
 
-        require(Sales[token].lockInEnd > block.timestamp, "Lock in period not over yet");
+        require(Sales[token].lockInEnd > block.timestamp, "Lock period not over yet");
     }
 
     function adminWithdraw(address token, uint256 amount) external {

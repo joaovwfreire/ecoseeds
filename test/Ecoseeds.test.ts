@@ -1,5 +1,6 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Ecoseeds", () => {
     let ecoseeds;
@@ -125,9 +126,37 @@ describe("Ecoseeds", () => {
     });
     describe("Withdrawing tokens", () => {
         
-        it("Should not withdraw tokens before lock period is over", async () => {});
+        it("Should not withdraw tokens before lock period is over", async () => {
 
-        it("Should withdraw tokens after lock period is over", async () => {});
+            await expect(ecoseeds.connect(purchaser).withdrawTokens(soldTokenAddress, ethers.utils.parseEther("1"))).to.be.revertedWith("Not enough tokens to withdraw");
+       
+            await ecoseeds.connect(purchaser).buyTokens(soldTokenAddress, {value: ethers.utils.parseEther("1")});
+            
+            const sale = await ecoseeds.Sales(soldTokenAddress);
+            const pricePerUnitInNativeToken = sale.pricePerUnitInNativeToken;
+            await expect(ecoseeds.connect(purchaser).withdrawTokens(soldTokenAddress, await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken))).to.be.revertedWith("Lock period not over yet");
+       
+        });
+
+        it("Should withdraw tokens after lock period is over", async () => {
+
+            await ecoseeds.connect(purchaser).buyTokens(soldTokenAddress, {value: ethers.utils.parseEther("1")});
+            
+            const sale = await ecoseeds.Sales(soldTokenAddress);
+            const pricePerUnitInNativeToken = sale.pricePerUnitInNativeToken;
+            await expect(ecoseeds.connect(purchaser).withdrawTokens(soldTokenAddress, await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken))).to.be.revertedWith("Lock period not over yet");
+       
+            await time.increase(86401);
+
+            const soldToken = await ethers.getContractAt("MintableERC20", soldTokenAddress);
+            const initialBalance = await soldToken.balanceOf(purchaser.address);
+            expect(initialBalance).to.equal(0);
+
+            await ecoseeds.connect(purchaser).withdrawTokens(soldTokenAddress, await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken));
+
+            const finalBalance = await soldToken.balanceOf(purchaser.address);
+            expect(finalBalance).to.equal(await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken));
+        });
     });
     describe("Burning tokens", () => {});
     describe("Claiming tokens", () => {});
