@@ -1,4 +1,4 @@
-![Overview](https://bafkreienwsme7rvaqt7nwa2bura4wt3aepcjayp5qc3xkcelyxf3wyia6y.ipfs.w3s.link/)
+![Overview](./classDiagram.svg)
 
 ## Token flow 
 1. Deploy token contract
@@ -13,6 +13,12 @@
     a. Check if lock period is over
     b. Decrease user balance at the sales contract according to the earnings stream
     c. Send tokens to user
+
+## How to generate the class diagram
+```bash
+yarn add sol2uml
+yarn sol2uml class contracts
+```
 
 ## Tasks 
 - [x] Create a repo	
