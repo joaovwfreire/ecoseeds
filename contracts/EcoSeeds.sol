@@ -23,6 +23,8 @@ contract EcoSeeds is Ownable {
     address public nct;
     address public nctOracle;
     address public superTokenFactory;
+    uint256 public fee = 5; // 5% fee
+    uint256 public cumulativeFee = 0;
 
     // token => user => amount
     mapping(address => mapping(address => uint256)) public balances;
@@ -33,6 +35,9 @@ contract EcoSeeds is Ownable {
     event Purchase(address indexed token, address indexed buyer, uint256 amount);
     event Withdraw(address indexed token, address indexed buyer, uint256 amount);
     event EarningsClaim(address indexed token, address indexed owner, uint256 amount);
+    event OracleChanged(address indexed oracle);
+    event NctChanged(address indexed nct);
+    event FeeChanged(uint256 fee);
 
     constructor (address _nct, address _nctOracle) {
 
@@ -81,6 +86,8 @@ contract EcoSeeds is Ownable {
         balances[token][msg.sender] += amountToAdd;
         Sales[token].sold += amountToAdd;
 
+        cumulativeFee += msg.value.mul(fee).div(100);
+
         emit Purchase(token, msg.sender, amountToAdd);
 
     }
@@ -101,7 +108,7 @@ contract EcoSeeds is Ownable {
         require(Sales[token].open == false, "Sale still ongoing");
         require(Sales[token].owner == msg.sender, "Only owner can claim earnings");
 
-        uint256 earnings = Sales[token].sold.mul(Sales[token].pricePerUnitInNativeToken);
+        uint256 earnings = (100-fee).mul(Sales[token].sold.mul(Sales[token].pricePerUnitInNativeToken)).div(100);
 
         // transfer earnings to owner and check if it worked
         require(payable(msg.sender).send(earnings), "Transfer failed");
@@ -109,21 +116,42 @@ contract EcoSeeds is Ownable {
         emit EarningsClaim(token, msg.sender, earnings);
     }
 
-    function adminWithdraw(address token, uint256 amount) external {
+    function adminWithdraw() external {
 
         require(owner() == msg.sender, "Only owner can withdraw");
+        require(cumulativeFee > 0, "No fees to withdraw");
+
+        // transfer earnings to owner and check if it worked
+        require(payable(msg.sender).send(cumulativeFee), "Transfer failed");
+
+        cumulativeFee = 0;
+
+        emit EarningsClaim(address(0), msg.sender, cumulativeFee);
     }
 
     function setOracle(address oracle) external {
 
         require(owner() == msg.sender, "Only owner can set oracle");
+        nctOracle = oracle;
+
+        emit OracleChanged(oracle);
     }
 
     function setNct(address token) external {
 
         require(owner() == msg.sender, "Only owner can set NCT");
+        nct = token;
+
+        emit NctChanged(token);
     }
 
+    function setFee(uint256 _fee) external {
+
+        require(owner() == msg.sender, "Only owner can set fee");
+        fee = _fee;
+
+        emit FeeChanged(_fee);
+    }
     function deployNewToken(string calldata name, string calldata symbol) internal returns(address) {
         MintableERC20 newToken = new MintableERC20(name, symbol, 18);
         return address(newToken);

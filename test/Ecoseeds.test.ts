@@ -177,9 +177,45 @@ describe("Ecoseeds", () => {
     });
 
     describe("Admin", () => {
-        describe("Admin withdraw", () => {});
-        describe("Oracle setup", () => {});
-        describe("NctSetup", () => {});
+        describe("Admin withdraw", () => {
+            it("Should not allow non-admin to withdraw", async () => {
+                await expect(ecoseeds.connect(purchaser).adminWithdraw()).to.be.revertedWith("Only owner can withdraw");
+            });
+            it("Should allow admin to withdraw", async () => {
+                const initialBalance = await ethers.provider.getBalance(owner.address);
+                await ecoseeds.connect(purchaser).buyTokens(soldTokenAddress, {value: ethers.utils.parseEther("1")});
+                await ecoseeds.connect(owner).adminWithdraw();
+                const finalBalance = await ethers.provider.getBalance(owner.address);
+                expect(finalBalance).to.greaterThan(initialBalance);
+            });
+        });
+        describe("Admin fee management", () => {
+            it("Should not allow non-admin to change fee", async () => {
+                await expect(ecoseeds.connect(purchaser).setFee(8)).to.be.revertedWith("Only owner can set fee");
+            });
+            it("Should allow admin to change fee", async () => {
+                await ecoseeds.connect(owner).setFee(8);
+                expect(await ecoseeds.fee()).to.equal(8);
+            });
+        });
+        describe("Oracle setup", () => {
+            it("Should not allow non-admin to set oracle", async () => {
+                await expect(ecoseeds.connect(purchaser).setOracle(signers[8].address)).to.be.revertedWith("Only owner can set oracle");
+            });
+            it("Should allow admin to set oracle", async () => {
+                await ecoseeds.connect(owner).setOracle(signers[8].address);
+                expect(await ecoseeds.nctOracle()).to.equal(signers[8].address);
+            });
+        });
+        describe("NctSetup", () => {
+            it("Should not allow non-admin to set NCT", async () => {
+                await expect(ecoseeds.connect(purchaser).setNct(signers[7].address)).to.be.revertedWith("Only owner can set NCT");
+            });
+            it("Should allow admin to set NCT", async () => {
+                await ecoseeds.connect(owner).setNct(signers[7].address);
+                expect(await ecoseeds.nct()).to.equal(signers[7].address);
+            });
+        });
     });
 
 });
