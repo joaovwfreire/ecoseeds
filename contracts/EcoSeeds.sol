@@ -4,8 +4,11 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./token/MintableERC20.sol";
 contract EcoSeeds is Ownable {
+
+    using SafeMath for uint256;
 
     struct Sale {
         address owner;
@@ -16,15 +19,18 @@ contract EcoSeeds is Ownable {
         uint256 sold;
     }
 
-
-    mapping(address => Sale) public Sales;
     address public nct;
     address public nctOracle;
     address public superTokenFactory;
 
+    // token => user => amount
+    mapping(address => mapping(address => uint256)) public balances;
+    mapping(address => Sale) public Sales;
+
     event SaleCreated(address indexed owner, uint256 pricePerUnitInNativeToken, uint256 lockInEnd, uint256 limit, bool acceptsNct, address token);
     event SaleFinished(address indexed token, address indexed owner);
-    
+    event Purchase(address indexed token, address indexed buyer, uint256 amount);
+
     constructor (address _nct, address _nctOracle) {
 
         nct = _nct;
@@ -62,9 +68,17 @@ contract EcoSeeds is Ownable {
         emit SaleFinished(token, msg.sender);
     }
 
-    function buyTokens(address token, uint256 amount) external {
-        require(Sales[token].sold + amount <= Sales[token].maxAmount, "Not enough tokens left");
+// add reentrancy guard here
+    function buyTokens(address token) external payable returns(bool) {
         require(Sales[token].sold < Sales[token].maxAmount + 1, "Sale is finished");
+
+        uint256 amountToAdd = msg.value.div(Sales[token].pricePerUnitInNativeToken);
+        require(Sales[token].sold + amountToAdd <= Sales[token].maxAmount, "Not enough tokens left");
+        
+        balances[token][msg.sender] += amountToAdd;
+        Sales[token].sold += amountToAdd;
+
+        emit Purchase(token, msg.sender, amountToAdd);
 
     }
 

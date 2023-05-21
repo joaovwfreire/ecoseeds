@@ -11,7 +11,9 @@ describe("Ecoseeds", () => {
     let soldTokenOwner;
     let lockInEnd;
     let soldTokenAddress;
-    const limit = ethers.utils.parseEther("1000");
+    let purchaser;
+
+    const limit = ethers.utils.parseEther("100000");
     
     before(async () => {
         signers = await ethers.getSigners();
@@ -19,6 +21,7 @@ describe("Ecoseeds", () => {
         oracle = signers[1];
         nctOwner = signers[2];
         soldTokenOwner = signers[3];
+        purchaser = signers[4];
 
      });
 
@@ -36,7 +39,7 @@ describe("Ecoseeds", () => {
             // lockInEnd in 1 day
             lockInEnd = now + 86400;
             // create a new sale
-            const tx = await ecoseeds.connect(soldTokenOwner).createSale( ethers.utils.parseEther("0.0001"), lockInEnd, limit, false, "EcoSeeds Token 1", "EST1");
+            const tx = await ecoseeds.connect(soldTokenOwner).createSale( ethers.utils.parseEther("0.1"), lockInEnd, limit, false, "EcoSeeds Token 1", "EST1");
             const receipt = await tx.wait();
             const event = receipt.events;
             expect(event[1].event).to.equal("SaleCreated");
@@ -66,7 +69,7 @@ describe("Ecoseeds", () => {
             const sale = await ecoseeds.Sales(soldTokenAddress);
             expect(sale.owner).to.equal(soldTokenOwner.address);
             expect(sale.acceptsNct).to.equal(false);
-            expect(sale.pricePerUnitInNativeToken).to.equal(ethers.utils.parseEther("0.0001"));
+            expect(sale.pricePerUnitInNativeToken).to.equal(ethers.utils.parseEther("0.1"));
             expect(sale.lockInEnd).to.equal(lockInEnd);
             expect(sale.maxAmount).to.equal(limit);
             expect(sale.sold).to.equal(0);
@@ -83,7 +86,7 @@ describe("Ecoseeds", () => {
 
         it("Should not allow to create a new sale with the same token", async () => {
             // This test always passes, because the contract always deploys a new token
-            // Gonna leave it anyway so I don't forget to test it when I implement the option of using an existing token
+            // Gonna leave it anyway so I don't forget to test it when I implement the existing token option
         });
 
 
@@ -97,6 +100,27 @@ describe("Ecoseeds", () => {
             expect(event[0].event).to.equal("SaleFinished");
             const sale = await ecoseeds.Sales(soldTokenAddress);
             expect(sale.sold).to.equal(limit.add(1));
+        });
+    });
+
+    describe("Buying tokens", () => {
+
+        it ("Should buy tokens with native token", async () => {
+
+            const initialBalance = await ecoseeds.balances(soldTokenAddress, purchaser.address);
+            expect (initialBalance).to.equal(0);
+            await ecoseeds.connect(purchaser).buyTokens(soldTokenAddress, {value: ethers.utils.parseEther("1")});
+        
+            const sale = await ecoseeds.Sales(soldTokenAddress);
+            const pricePerUnitInNativeToken = sale.pricePerUnitInNativeToken;
+
+            const finalBalance = await ecoseeds.balances(soldTokenAddress, purchaser.address);
+            expect (finalBalance).to.equal(await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken));
+        });
+
+        it ("Should buy tokens with NCT", async () => {
+            
+            // Don't forget to test it when I implement the purchase with NCT option
         });
     });
     describe("Withdrawing tokens", () => {
