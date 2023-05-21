@@ -100,7 +100,7 @@ describe("Ecoseeds", () => {
             const event = receipt.events;
             expect(event[0].event).to.equal("SaleFinished");
             const sale = await ecoseeds.Sales(soldTokenAddress);
-            expect(sale.sold).to.equal(limit.add(1));
+            expect(sale.open).to.equal(false);
         });
     });
 
@@ -158,8 +158,24 @@ describe("Ecoseeds", () => {
             expect(finalBalance).to.equal(await ethers.utils.parseEther("1").div(pricePerUnitInNativeToken));
         });
     });
-    describe("Burning tokens", () => {});
-    describe("Claiming tokens", () => {});
+
+    describe("Claiming earnings", () => {
+
+        it ("Should not claim earnings with open sale", async () => {
+            await expect(ecoseeds.connect(soldTokenOwner).claimEarnings(soldTokenAddress)).to.be.revertedWith("Sale still ongoing");
+        })
+        it ("Should claim earnings with closed sale", async () => {
+            const initialBalance = await ethers.provider.getBalance(soldTokenOwner.address);
+
+            await ecoseeds.connect(purchaser).buyTokens(soldTokenAddress, {value: ethers.utils.parseEther("1")});
+        
+            await ecoseeds.connect(soldTokenOwner).finishSale(soldTokenAddress);
+            await ecoseeds.connect(soldTokenOwner).claimEarnings(soldTokenAddress);
+            const finalBalance = await ethers.provider.getBalance(soldTokenOwner.address);
+            expect(finalBalance).to.greaterThan(initialBalance);
+        })
+    });
+
     describe("Admin", () => {
         describe("Admin withdraw", () => {});
         describe("Oracle setup", () => {});

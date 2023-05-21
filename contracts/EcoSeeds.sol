@@ -13,6 +13,7 @@ contract EcoSeeds is Ownable {
     struct Sale {
         address owner;
         bool acceptsNct;
+        bool open;
         uint256 pricePerUnitInNativeToken;
         uint256 lockInEnd;
         uint256 maxAmount;
@@ -31,6 +32,7 @@ contract EcoSeeds is Ownable {
     event SaleFinished(address indexed token, address indexed owner);
     event Purchase(address indexed token, address indexed buyer, uint256 amount);
     event Withdraw(address indexed token, address indexed buyer, uint256 amount);
+    event EarningsClaim(address indexed token, address indexed owner, uint256 amount);
 
     constructor (address _nct, address _nctOracle) {
 
@@ -55,7 +57,7 @@ contract EcoSeeds is Ownable {
 
         require(Sales[address(existingToken)].owner == address(0), "Sale already exists");
 
-        Sales[address(existingToken)] = Sale(msg.sender, _acceptsNct, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
+        Sales[address(existingToken)] = Sale(msg.sender, _acceptsNct, true, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
 
         emit SaleCreated( msg.sender, _pricePerUnitInNativeToken, _lockInEnd, _limit, _acceptsNct, address(existingToken));
     
@@ -64,14 +66,14 @@ contract EcoSeeds is Ownable {
 
     function finishSale(address token) external {
         require(Sales[token].owner == msg.sender, "Only owner can finish sale");
-        Sales[token].sold = Sales[token].maxAmount + 1;
+        Sales[token].open = false;
 
         emit SaleFinished(token, msg.sender);
     }
 
 // add reentrancy guard here
     function buyTokens(address token) external payable returns(bool) {
-        require(Sales[token].sold < Sales[token].maxAmount + 1, "Sale is finished");
+        require(Sales[token].open == true, "Sale is finished");
 
         uint256 amountToAdd = msg.value.div(Sales[token].pricePerUnitInNativeToken);
         require(Sales[token].sold + amountToAdd <= Sales[token].maxAmount, "Not enough tokens left");
@@ -94,14 +96,17 @@ contract EcoSeeds is Ownable {
         emit Withdraw(address(token), msg.sender, amount);
     }
 
-    function burn(address token, uint256 amount) external {
+    function claimEarnings(address token) external {
 
-        require(Sales[token].owner == msg.sender, "Only owner can burn tokens");
-    }
+        require(Sales[token].open == false, "Sale still ongoing");
+        require(Sales[token].owner == msg.sender, "Only owner can claim earnings");
 
-    function claim(address token) external {
+        uint256 earnings = Sales[token].sold.mul(Sales[token].pricePerUnitInNativeToken);
 
-        require(Sales[token].lockInEnd > block.timestamp, "Lock period not over yet");
+        // transfer earnings to owner and check if it worked
+        require(payable(msg.sender).send(earnings), "Transfer failed");
+
+        emit EarningsClaim(token, msg.sender, earnings);
     }
 
     function adminWithdraw(address token, uint256 amount) external {
