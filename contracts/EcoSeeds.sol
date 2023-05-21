@@ -107,6 +107,7 @@ contract EcoSeeds is Ownable {
 
         require(Sales[token].open == false, "Sale still ongoing");
         require(Sales[token].owner == msg.sender, "Only owner can claim earnings");
+        require(Sales[address(token)].lockInEnd < block.timestamp, "Lock period not over yet");
 
         uint256 earnings = (100-fee).mul(Sales[token].sold.mul(Sales[token].pricePerUnitInNativeToken)).div(100);
 
