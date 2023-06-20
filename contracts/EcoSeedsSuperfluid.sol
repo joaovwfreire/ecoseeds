@@ -17,11 +17,13 @@ import {
 import {
     PureSuperToken
 } from "@superfluid-finance/ethereum-contracts/contracts/tokens/PureSuperToken.sol";
-
+import {
+    ISuperTokenFactory
+} from "./interfaces/ISuperTokenFactory.sol";
 
 
 import "./token/MintableERC20.sol";
-contract EcoSeeds is Ownable {
+contract EcoSeedsSuperfluid is Ownable {
 
     using SafeMath for uint256;
     using SuperTokenV1Library for PureSuperToken;
@@ -46,7 +48,7 @@ contract EcoSeeds is Ownable {
     mapping(address => mapping(address => uint256)) public balances;
     mapping(address => Sale) public Sales;
 
-    event SaleCreated(address indexed owner, uint256 pricePerUnitInNativeToken, uint256 lockInEnd, uint256 limit, bool acceptsNct, address token);
+    event SaleCreated(address indexed owner, uint256 pricePerUnitInNativeToken, uint256 lockInEnd, uint256 limit, bool acceptsNct, address underlyingToken, address superToken);
     event SaleFinished(address indexed token, address indexed owner);
     event Purchase(address indexed token, address indexed buyer, uint256 amount);
     event Withdraw(address indexed token, address indexed buyer, uint256 amount);
@@ -55,10 +57,11 @@ contract EcoSeeds is Ownable {
     event NctChanged(address indexed nct);
     event FeeChanged(uint256 fee);
 
-    constructor (address _nct, address _nctOracle) {
+    constructor (address _nct, address _nctOracle, address _superTokenFactory) {
 
         nct = _nct;
         nctOracle = _nctOracle;
+        superTokenFactory = _superTokenFactory;
 
     }
 
@@ -70,21 +73,17 @@ contract EcoSeeds is Ownable {
         require(_lockInEnd > 0, "Lock in period must be greater than 0");
         require(_limit > 0, "Limit must be greater than 0");
 
-        // create new mock token
-        address newToken = deployNewToken();
+        // create new token
+        address newToken = deployNewToken(name, symbol);
+        string memory superName = string(abi.encodePacked("Super ", name));
+        string memory superSymbol = string(abi.encodePacked("S", symbol));
 
-        
-        PureSuperToken(payable(newToken)).initialize(name, symbol, _limit);
+        // create new superfluid token wrapper
+        address superToken = ISuperTokenFactory(superTokenFactory).createERC20Wrapper(address(newToken), 1, superName, superSymbol);
 
-        PureSuperToken existingToken = PureSuperToken(payable(newToken));
-        
-        // existingToken.mint(_limit);
+        Sales[address(newToken)] = Sale(msg.sender, _acceptsNct, true, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
 
-        require(Sales[address(existingToken)].owner == address(0), "Sale already exists");
-
-        Sales[address(existingToken)] = Sale(msg.sender, _acceptsNct, true, _pricePerUnitInNativeToken, _lockInEnd, _limit, 0);
-
-        emit SaleCreated( msg.sender, _pricePerUnitInNativeToken, _lockInEnd, _limit, _acceptsNct, address(existingToken));
+        emit SaleCreated( msg.sender, _pricePerUnitInNativeToken, _lockInEnd, _limit, _acceptsNct, address(newToken), address(superToken));
     
 
     }
@@ -173,8 +172,11 @@ contract EcoSeeds is Ownable {
 
         emit FeeChanged(_fee);
     }
-    function deployNewToken() internal returns(address) {
-        PureSuperToken newToken = new PureSuperToken();
+
+    // this should be altered to:
+    // factory contract createWrappertoken call & take the new token address as argument
+    function deployNewToken(string calldata name, string calldata symbol) internal returns(address) {
+        MintableERC20 newToken = new MintableERC20(name, symbol, 18);
         return address(newToken);
     }
 
